@@ -1,0 +1,25 @@
+#!/bin/sh
+
+ARCH=`uname -m`
+SYSTEM=`uname -s`
+
+case "${SYSTEM}-${ARCH}" in
+"Darwin-arm64")
+    ;;
+"FreeBSD-amd64")
+    ;;
+"FreeBSD-arm64")
+    ;;
+"Linux-aarch64")
+    ;;
+"Linux-x86_64")
+    ;;
+*)
+    ARCH="unknown"
+    SYSTEM="unknown"
+    ;;
+esac
+
+echo "Building for ${SYSTEM}-${ARCH}"
+rm config.mk 2> /dev/null || true
+ln -s config/${SYSTEM}-${ARCH}.mk config.mk

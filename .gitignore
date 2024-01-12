@@ -1,0 +1,4 @@
+*.sw?
+plutonium
+*.o
+config.mk
