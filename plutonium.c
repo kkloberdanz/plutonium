@@ -19,9 +19,13 @@
  * - Don't read content until a read_content() function is called
  * - Add sqlite DB
  * - Add S7 scheme interpreter
+ * - Replace fork model with thread pool (wrkq.c)
+ *   + Each thread will get its own sqlite conn in thread local storage.
+ * - Move main to an option file so that the rest of this project can be
+ *   re-used as a library.
  */
 
-static const char *get_routes[] = {"/"};
+static const char *get_routes[] = {"/api"};
 static const size_t num_get_routes = sizeof(get_routes) / sizeof(*get_routes);
 
 typedef const char *const str;
@@ -320,6 +324,10 @@ handle_request:
             }
         }
 
+        if (!strcmp(path, "/")) {
+            strcpy(path, "/index.html");
+        }
+
         /* check if the file exists */
         fd = open(path, O_RDONLY);
         if (fd != -1) {
@@ -335,14 +343,12 @@ handle_request:
             close(fd);
             goto done;
         }
-
         perror("open");
+
         /* if not, then return a 404 */
         canned_reply(new_socket, HTTP_NOT_FOUND);
+        goto done;
     }
-
-    canned_reply(new_socket, HTTP_OK);
-    goto done;
 
 fail:
     canned_reply(new_socket, HTTP_BAD_REQUEST);
@@ -351,6 +357,35 @@ done:
     free(header);
     free(content);
     free(path);
+}
+
+static int drop_privileges(uid_t uid) {
+    int rc = 0;
+    gid_t list[1];
+    const size_t len = sizeof(list) / sizeof(*list);
+
+    list[0] = uid;
+
+    rc = setgroups(len, list);
+    if (rc) {
+        perror("setgroups");
+        goto done;
+    }
+
+    rc = setgid(uid);
+    if (rc) {
+        perror("setgid");
+        goto done;
+    }
+
+    rc = setuid(uid);
+    if (rc) {
+        perror("setuid");
+        goto done;
+    }
+
+done:
+    return rc;
 }
 
 int main(void) {
@@ -408,13 +443,10 @@ int main(void) {
         exit(EXIT_FAILURE);
     }
 
-    rc = setuid(501);
+    rc = drop_privileges(501);
     if (rc) {
-        perror("setuid");
         exit(EXIT_FAILURE);
     }
-
-    fprintf(stderr, "uid> %d\n", getuid());
 
     fprintf(stderr, "plutonium: listening on port: %d\n", port);
     for (;;) {
