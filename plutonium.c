@@ -14,7 +14,7 @@
 
 /*
  * TODO:
- * - User definder handler function pointers
+ * - User defined handler function pointers
  * - Fix up request reading
  * - Don't read content until a read_content() function is called
  * - Add sqlite DB
@@ -187,22 +187,36 @@ done:
 }
 
 static void send_to_socket(int new_socket, int fd, off_t nbytes) {
-    off_t offset = 0;
+    char buf[8192];
+    size_t remaining = nbytes;
+    ssize_t r;
+    size_t written = 0;
 
-    while (nbytes > 0) {
-        ssize_t sent_bytes =
-            sendfile(fd, new_socket, offset, &nbytes, NULL, 0);
+    while (remaining > 0) {
+        size_t to_read = sizeof(buf);
+        if (to_read > remaining)
+            to_read = remaining;
 
-        if (sent_bytes == -1) {
+        r = read(fd, buf, to_read);
+        if (r < 0) {
+            perror("read");
             return;
         }
-
-        offset += sent_bytes;
-        nbytes -= sent_bytes;
-
-        if (sent_bytes == 0 && nbytes > 0) {
-            continue;
+        if (r == 0) {
+            break;
         }
+
+        written = 0;
+        while (written < (size_t)r) {
+            ssize_t w = write(new_socket, buf + written, r - written);
+            if (w < 0) {
+                perror("write");
+                return;
+            }
+            written += w;
+        }
+
+        remaining -= r;
     }
 }
 
@@ -303,8 +317,8 @@ handle_request:
         size_t i;
         int fd;
 
-        path = strdup(header + strlen("GET "));
-        if (!path) {
+        path = header + strlen("GET ");
+        if (!*path) {
             goto fail;
         }
 
@@ -356,7 +370,6 @@ fail:
 done:
     free(header);
     free(content);
-    free(path);
 }
 
 static int drop_privileges(uid_t uid) {
