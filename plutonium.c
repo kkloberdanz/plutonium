@@ -1,11 +1,14 @@
 #define _DEFAULT_SOURCE
+#define _BSD_SOURCE
 #include <fcntl.h>
+#include <grp.h>
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/param.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
